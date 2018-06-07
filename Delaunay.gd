@@ -9,18 +9,11 @@ extends MeshInstance
 	# append points to the array points[]
 	# call do_delaunay()
 
-export var demo_mode = true
-export var horizontal = true # XZ or XY
 export var wireframe = true
 export var smooth_shading = false
-export var random_h = true
-export var add_points = true
 
 # I don't know the real epsilon in Godot, but this works
 var float_Epsilon = 0.000001
-
-# timer for adding points
-var t = -1.0
 
 # A Vector3-array for delaunay triangulator
 var points = []
@@ -43,52 +36,13 @@ func _on_Wireframe_CheckBox_toggled( pressed ):
 func _on_SmoothShading_CheckBox_toggled( pressed ):
 	smooth_shading = pressed
 
-func _on_RandomHeight_CheckBox_toggled( pressed ):
-	random_h = pressed
-	points.clear()
-
 func update_counters():
 	var s = "Verts: " + str(verts.size())
 	s += "\nTris: " + str(tris.size())
 	s += "\n\nFPS: " + str(Engine.get_frames_per_second())
 	s += "\nmsec: " + str(generation_time)
 	status_text = s
-	# get_node("/root/Main/Counters").set_text(s)
 
-func _ready():
-	if demo_mode:
-		set_process(true)
-
-func _process(delta):
-	
-	# Keep adding more points and triangulate the result
-	t+=delta
-	if t >= 0.2: # 5 points / second
-		t=0
-
-		if not add_points:
-			return
-		
-		# randomize height-values just for fun
-		var r = 0.0
-		if random_h:
-			r = randf()*10
-		
-		# add points for triangulation
-		if horizontal:
-			points.append(Vector3(50-randf()*100, r, 50-randf()*100))
-		else:
-			points.append(Vector3(50-randf()*100, 50-randf()*100, r))
-		
-		# triangulate if there is enough points
-		if points.size() >= 3:
-			do_delaunay()
-		
-		# Clear points if there is too much lag
-		if Engine.get_frames_per_second() <= 30:
-			points.clear()
-			t = -2.0
-		
 func do_delaunay():
 	generation_time = OS.get_ticks_msec()
 	
@@ -103,6 +57,7 @@ func do_delaunay():
 	
 	generation_time = OS.get_ticks_msec() - generation_time
 	update_counters()
+	print(status_text)
 
 func Triangulate():
 	
@@ -119,12 +74,15 @@ func Triangulate():
 	
 	# Create triangle indices
 	tris = TriangulatePolygon(verts)
+	for tri in tris:
+		create_circumcenter(tri)
+		create_connected(tri)
+
 	
 func CreateSurface():
 	
 	# Clear previous data from SurfaceTool
 	surfTool.clear()
-	var color = Color(1.0, 1.0, 1.0, 1.0)
 	
 	# Select primitive mode
 	if wireframe:
@@ -139,12 +97,7 @@ func CreateSurface():
 	# Add vertices and UV to SurfaceTool
 	var i = 0
 	while i < verts.size():
-		if wireframe:
-			surfTool.add_color(color)
-		elif horizontal:
-			surfTool.add_uv(Vector2(verts[i].x/100+0.5,verts[i].z/100+0.5))
-		else:
-			surfTool.add_uv(Vector2(verts[i].x/100+0.5,-verts[i].y/100+0.5))
+		surfTool.add_uv(Vector2(verts[i].x/100+0.5,verts[i].z/100+0.5))
 		surfTool.add_vertex(verts[i])
 		i += 1
 	
@@ -191,10 +144,14 @@ class Triangle:
 	var p1
 	var p2
 	var p3
+	var circumcenter
+	var connected
+
 	func _init(var point1, var point2, var point3):
 		p1 = point1
 		p2 = point2
 		p3 = point3
+
 class Edge:
 	var p1
 	var p2
@@ -207,6 +164,8 @@ class Edge:
 
 func TriangulatePolygon(XZofVertices):
 	var VertexCount = XZofVertices.size()
+
+	# Find minimum and maximum x and y values
 	var xmin = XZofVertices[0].x
 	var ymin = XZofVertices[0].y
 	var xmax = xmin
@@ -220,34 +179,37 @@ func TriangulatePolygon(XZofVertices):
 		xmax = max(xmax, v.x)
 		ymax = max(ymax, v.y)
 		i += 1
-	
+
+	# Find the x and y ranges and mids
 	var dx = xmax - xmin
 	var dy = ymax - ymin
 	var dmax = max(dx,dy)
 	var xmid = (xmax + xmin) * 0.5
 	var ymid = (ymax + ymin) * 0.5
 	
+	# Copy the input vertices into the expandedXZ array
 	var ExpandedXZ = Array()
 	i = 0
 	while i < XZofVertices.size():
 		var v = XZofVertices[i]
-		if horizontal:
-			ExpandedXZ.append(Vector3(v.x, -v.z, v.y))
-		else:
-			ExpandedXZ.append(Vector3(v.x, v.y, v.z))
+		ExpandedXZ.append(Vector3(v.x, -v.z, v.y))
 		i += 1
 	
+	# Add 3 somewhat weird vertices (enclosing tri)
 	ExpandedXZ.append(Vector2((xmid - 2 * dmax), (ymid - dmax)))
 	ExpandedXZ.append(Vector2(xmid, (ymid + 2 * dmax)))
 	ExpandedXZ.append(Vector2((xmid + 2 * dmax), (ymid - dmax)))
 	
 	var TriangleList = Array()
+	# Add an weird triangle made from the 3 weird vertices above
 	TriangleList.append(Triangle.new(VertexCount, VertexCount + 1, VertexCount + 2))
 	var ii1 = 0
 	while ii1 < VertexCount:
+		# For each of the original XZofVertices vertices
 		var Edges = Array()
 		var ii2 = 0
 		while ii2 < TriangleList.size():
+			# 
 			if TriangulatePolygonSubFunc_InCircle(ExpandedXZ[ii1], ExpandedXZ[TriangleList[ii2].p1], ExpandedXZ[TriangleList[ii2].p2], ExpandedXZ[TriangleList[ii2].p3]):
 				Edges.append(Edge.new(TriangleList[ii2].p1, TriangleList[ii2].p2))
 				Edges.append(Edge.new(TriangleList[ii2].p2, TriangleList[ii2].p3))
@@ -322,3 +284,36 @@ func TriangulatePolygonSubFunc_InCircle(p, p1, p2, p3):
 	dy = p.y - yc
 	var drsqr = dx * dx + dy * dy
 	return (drsqr <= rsqr)
+
+# Some extra calculations
+
+func create_circumcenter(tri):
+	var d21 = verts[tri.p2] - verts[tri.p1]
+	var d32 = verts[tri.p3] - verts[tri.p2]
+	var d13 = verts[tri.p1] - verts[tri.p3]
+	var det = d32.x * d21.z - d21.x * d32.z
+	assert (abs(det) >= float_Epsilon) # Triangle points should not be colinear.
+	det *= 2
+	var sqr1 = verts[tri.p1].x * verts[tri.p1].x + verts[tri.p1].z * verts[tri.p1].z
+	var sqr2 = verts[tri.p2].x * verts[tri.p2].x + verts[tri.p2].z * verts[tri.p2].z
+	var sqr3 = verts[tri.p3].x * verts[tri.p3].x + verts[tri.p3].z * verts[tri.p3].z
+	var cx =  (sqr1 * d32.z + sqr2 * d13.z + sqr3 * d21.z) / det
+	var cy = 0
+	var cz = -(sqr1 * d32.x + sqr2 * d13.x + sqr3 * d21.x) / det
+	tri.circumcenter = Vector3(cx, cy, cz)
+
+func create_connected(tri):
+	# basically find any other triangles that share 2 vertices
+	var this = [tri.p1, tri.p2, tri.p3]
+	var connected_tris = []
+	var i = 0
+	while connected_tris.size() < 3 and i < tris.size():
+		var score = 0
+		var other = [tris[i].p1, tris[i].p2, tris[i].p3]
+		for t in this:
+			for o in other:
+				score += 1 if t == o else 0
+		if score == 2:
+			connected_tris.append(i)
+		i+=1
+	tri.connected = connected_tris
