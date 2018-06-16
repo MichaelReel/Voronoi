@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=2]
+[gd_scene load_steps=8 format=2]
 
 [ext_resource path="res://Generator.gd" type="Script" id=1]
 [ext_resource path="res://Delaunay.gd" type="Script" id=2]
@@ -18,6 +18,13 @@ void fragment() {
 render_priority = 0
 shader = SubResource( 1 )
 
+[sub_resource type="PlaneMesh" id=3]
+
+custom_aabb = AABB( 0, 0, 0, 0, 0, 0 )
+size = Vector2( 1, 1 )
+subdivide_width = 0
+subdivide_depth = 0
+
 [node name="Root" type="Spatial" index="0"]
 
 [node name="Generator" type="Spatial" parent="." index="0"]
@@ -28,7 +35,7 @@ seedy = 0
 
 [node name="Delaunay" type="MeshInstance" parent="Generator" index="0"]
 
-visible = false
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0 )
 layers = 1
 material_override = SubResource( 2 )
 cast_shadow = 1
@@ -41,7 +48,7 @@ lod_max_hysteresis = 0.0
 mesh = null
 skeleton = NodePath("..")
 script = ExtResource( 2 )
-_sections_unfolded = [ "Geometry" ]
+_sections_unfolded = [ "Geometry", "Transform" ]
 wireframe = true
 smooth_shading = false
 
@@ -62,6 +69,23 @@ script = ExtResource( 3 )
 _sections_unfolded = [ "Geometry" ]
 wireframe = true
 smooth_shading = false
+
+[node name="BaseOutline" type="MeshInstance" parent="Generator" index="2"]
+
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -0.01, 0.5 )
+layers = 1
+material_override = null
+cast_shadow = 1
+extra_cull_margin = 0.0
+use_in_baked_light = false
+lod_min_distance = 0.0
+lod_min_hysteresis = 0.0
+lod_max_distance = 0.0
+lod_max_hysteresis = 0.0
+mesh = SubResource( 3 )
+skeleton = NodePath("..")
+material/0 = null
+_sections_unfolded = [ "Geometry", "Transform", "material" ]
 
 [node name="CameraMount" type="Spatial" parent="." index="1"]
 

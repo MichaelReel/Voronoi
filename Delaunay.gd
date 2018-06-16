@@ -12,8 +12,8 @@ extends MeshInstance
 export var wireframe = true
 export var smooth_shading = false
 
-# I don't know the real epsilon in Godot, but this works
-var float_Epsilon = 0.000001
+# I don't know the real epsilon in Godot (it's tiny), but this works
+var float_Epsilon = 0.0000001
 
 # A Vector3-array for delaunay triangulator
 var points = []
@@ -36,6 +36,10 @@ func _on_Wireframe_CheckBox_toggled( pressed ):
 func _on_SmoothShading_CheckBox_toggled( pressed ):
 	smooth_shading = pressed
 
+func _input(event):
+	if event.is_action_pressed("toggle_delaunay"):
+		visible = not visible
+
 func update_counters():
 	var s = "Verts: " + str(verts.size())
 	s += "\nTris: " + str(tris.size())
@@ -44,6 +48,7 @@ func update_counters():
 	status_text = s
 
 func do_delaunay():
+
 	generation_time = OS.get_ticks_msec()
 	
 	# Do the Delaunay triangulation
@@ -63,6 +68,7 @@ func Triangulate():
 	
 	# Clear any existing data
 	# uv.clear()
+	surfTool.clear()
 	verts.clear()
 	tris.clear()
 	
@@ -80,10 +86,7 @@ func Triangulate():
 
 	
 func CreateSurface():
-	
-	# Clear previous data from SurfaceTool
-	surfTool.clear()
-	
+
 	# Select primitive mode
 	if wireframe:
 		surfTool.begin(Mesh.PRIMITIVE_LINES)
