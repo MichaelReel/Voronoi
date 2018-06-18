@@ -1,11 +1,9 @@
 extends MeshInstance
 
-# Shamelessly ripped-off Delaunay code ported to Godot by Tapio Pyrhönen
-# (https://github.com/TassuP/GodotStuff/tree/master/DelaunayTriangulator)
-# Based on this: https://gist.github.com/miketucker/3795318
+# Ripped/ported from libgdx:
+# https://github.com/libgdx/libgdx/blob/master/gdx/src/com/badlogic/gdx/math/DelaunayTriangulator.java
 
-# To use this code in your project:
-	# set demo_mode to false,
+# To use:
 	# append points to the array points[]
 	# call do_delaunay()
 
@@ -64,6 +62,10 @@ func do_delaunay():
 	update_counters()
 	print(status_text)
 
+class VectorXSort:
+	static func sort(a, b):
+		return a.x < b.x
+
 func Triangulate():
 	
 	# Clear any existing data
@@ -77,9 +79,12 @@ func Triangulate():
 	while i<points.size():
 		verts.append(Vector3(points[i].x, points[i].y, points[i].z))
 		i+=1
+
+	# Sort the verts by the x axis
+	verts.sort_custom(VectorXSort, "sort")
 	
 	# Create triangle indices
-	tris = TriangulatePolygon(verts)
+	tris = triangulate_polygons(verts)
 	for tri in tris:
 		create_circumcenter(tri)
 		create_connected(tri)
@@ -139,8 +144,7 @@ func CreateMesh():
 	
 	return mesh
 
-
-#################  The rest is the delaunay-code #################
+## Delaunay-code ##
 
 # classes for delaunay
 class Triangle:
@@ -164,129 +168,181 @@ class Edge:
 	func Equals(var other):
 		return ((p1 == other.p2) && (p2 == other.p1)) || ((p1 == other.p1) && (p2 == other.p2))
 
+func triangulate_polygons(pts):
+	var triangles = []
+	var end = len(pts)
+	if end < 3:
+		return triangles
 
-func TriangulatePolygon(XZofVertices):
-	var VertexCount = XZofVertices.size()
-
-	# Find minimum and maximum x and y values
-	var xmin = XZofVertices[0].x
-	var ymin = XZofVertices[0].y
+	# Determine bounds for the super triangle
+	var xmin = pts[0].x
+	var zmin = pts[0].z
 	var xmax = xmin
-	var ymax = ymin
-	
-	var i = 0
-	while i < XZofVertices.size():
-		var v = XZofVertices[i]
-		xmin = min(xmin, v.x)
-		ymin = min(ymin, v.y)
-		xmax = max(xmax, v.x)
-		ymax = max(ymax, v.y)
+	var zmax = zmin
+	var i = 1
+	while i < end:
+		var value = points[i].x
+		xmin = min(xmin, value)
+		xmax = max(xmax, value)
+		value = points[i].z
+		zmin = min(zmin, value)
+		zmax = max(zmax, value)
 		i += 1
 
-	# Find the x and y ranges and mids
+	# (Find the x and y ranges and mids)
 	var dx = xmax - xmin
-	var dy = ymax - ymin
-	var dmax = max(dx,dy)
-	var xmid = (xmax + xmin) * 0.5
-	var ymid = (ymax + ymin) * 0.5
-	
-	# Copy the input vertices into the expandedXZ array
-	var ExpandedXZ = Array()
-	i = 0
-	while i < XZofVertices.size():
-		var v = XZofVertices[i]
-		ExpandedXZ.append(Vector3(v.x, -v.z, v.y))
-		i += 1
-	
-	# Add 3 somewhat weird vertices (enclosing tri)
-	ExpandedXZ.append(Vector2((xmid - 2 * dmax), (ymid - dmax)))
-	ExpandedXZ.append(Vector2(xmid, (ymid + 2 * dmax)))
-	ExpandedXZ.append(Vector2((xmid + 2 * dmax), (ymid - dmax)))
-	
-	var TriangleList = Array()
-	# Add an weird triangle made from the 3 weird vertices above
-	TriangleList.append(Triangle.new(VertexCount, VertexCount + 1, VertexCount + 2))
-	var ii1 = 0
-	while ii1 < VertexCount:
-		# For each of the original XZofVertices vertices
-		var Edges = Array()
-		var ii2 = 0
-		while ii2 < TriangleList.size():
-			# 
-			if TriangulatePolygonSubFunc_InCircle(ExpandedXZ[ii1], ExpandedXZ[TriangleList[ii2].p1], ExpandedXZ[TriangleList[ii2].p2], ExpandedXZ[TriangleList[ii2].p3]):
-				Edges.append(Edge.new(TriangleList[ii2].p1, TriangleList[ii2].p2))
-				Edges.append(Edge.new(TriangleList[ii2].p2, TriangleList[ii2].p3))
-				Edges.append(Edge.new(TriangleList[ii2].p3, TriangleList[ii2].p1))
-				TriangleList.remove(ii2)
-				ii2-=1
-			ii2+=1
-		
-		ii2 = Edges.size()-2
-		while ii2 >= 0:
-			var ii3 = Edges.size()-1
-			while ii3 >= ii2+1:
-				if Edges[ii2].Equals(Edges[ii3]):
-					Edges.remove(ii3)
-					Edges.remove(ii2)
-					ii3-=1
-				ii3-=1
-			ii2-=1
+	var dz = zmax - zmin
+	var dmax = max(dx, dz) * 20.0
+	var xmid = (xmax + xmin) / 2.0
+	var zmid = (zmax + zmin) / 2.0
+
+	# Setup the super triangle, which should contain all the points
+	var superTri = []
+	superTri.append(Vector3(xmid - dmax, 0, zmid - dmax))
+	superTri.append(Vector3(xmid       , 0, zmid + dmax))
+	superTri.append(Vector3(xmid + dmax, 0, zmid - dmax))
+
+	# Setup edge storage
+	var edgs = []
+	var complete = []
+
+	# Add super triangle indices (indices > end == superTri)
+	triangles.append(end)
+	triangles.append(end + 1)
+	triangles.append(end + 2)
+	complete.append(false)
+
+	# Include each point (one at a time) into the existing mesh
+	var pt_ind = 0
+	for pt in pts:
+
+		var x = pt.x
+		var z = pt.z
+
+		# If x,z lies inside the circumcircle of a triangle, the edges are stored and the triangle removed
+		var tri_ind = len(triangles) - 1
+		while tri_ind >= 0:
+
+			var com_ind = tri_ind / 3
+			if complete[com_ind]:
+				tri_ind -= 3
+				continue
 			
-		ii2 = 0
-		while ii2 < Edges.size():
-			TriangleList.append(Triangle.new(Edges[ii2].p1, Edges[ii2].p2, ii1))
-			ii2+=1
-		Edges.clear()
-		ii1 += 1
-		
-	ii1 = TriangleList.size()-1
-	while ii1 >= 0:
-		if TriangleList[ii1].p1 >= VertexCount || TriangleList[ii1].p2 >= VertexCount || TriangleList[ii1].p3 >= VertexCount:
-			TriangleList.remove(ii1)
-		ii1-=1
-		
-	return TriangleList
+			# Get the revelant points
+			var p_inds = [triangles[tri_ind - 2], triangles[tri_ind - 1], triangles[tri_ind]]
+			
+			# Get the relevant positional info
+			var x_p = []
+			var z_p = []
+
+			for j in range(3):
+				if p_inds[j] >= end:
+					i = p_inds[j] - end
+					x_p.append(superTri[i].x)
+					z_p.append(superTri[i].z)
+				else:
+					i = p_inds[j]
+					x_p.append(pts[i].x)
+					z_p.append(pts[i].z)
+			
+			# Find if we're inside if x,z is in the circumcircle
+			var circum = circumcircle(x, z, x_p[0], z_p[0], x_p[1], z_p[1], x_p[2], z_p[2])
+			
+			if circum == CIRC.COMPLETE:
+				complete[com_ind] = true
+			elif circum == CIRC.INSIDE:
+				edgs.append(p_inds[0])
+				edgs.append(p_inds[1])
+				edgs.append(p_inds[1])
+				edgs.append(p_inds[2])
+				edgs.append(p_inds[2])
+				edgs.append(p_inds[0])
+
+				triangles.remove(tri_ind)
+				triangles.remove(tri_ind - 1)
+				triangles.remove(tri_ind - 2)
+				complete.remove(com_ind)
+			tri_ind -= 3
 	
-func TriangulatePolygonSubFunc_InCircle(p, p1, p2, p3):
-	if abs(p1.y - p2.y) < float_Epsilon && abs(p2.y - p3.y) < float_Epsilon:
-		return false
-	var m1
-	var m2
-	var mx1
-	var mx2
-	var my1
-	var my2
+		# print ("DBG: ", 12)
+
+		var n = len(edgs)
+		for i in range (0, n, 2):
+			# Skip multiple edges. If all tris are anti-wise then all interior edges are opposite pointing
+			var p1 = edgs[i]
+			if p1 == -1: continue
+			var p2 = edgs[i + 1]
+			var skip = false
+			for ii in range(i + 2, n, 2):
+				if p1 == edgs[ii + 1] and p2 == edgs[ii]:
+					skip = true
+					edgs[ii] = -1
+			if skip: continue
+			
+			# Form new triangles for the current point. Edges are arranged in clockwise order
+			triangles.append(p1)
+			triangles.append(edgs[i  + 1])
+			triangles.append(pt_ind)
+			complete.append(false)
+		edgs.clear()
+		pt_ind += 1
+
+	# Remove triangles with super triangle vertices
+	i = len(triangles) - 1
+	while i >= 0:
+		if triangles[i] >= end or triangles[i - 1] >= end or triangles[i - 2] >= end:
+			triangles.remove(i)
+			triangles.remove(i - 1)
+			triangles.remove(i - 2)
+		i -= 3
+
+	# Adjust triangles to classed rather than edge pairs
+	var return_triangles = []
+	for i in range(0, len(triangles), 3):
+		return_triangles.append(Triangle.new(triangles[i], triangles[i + 1], triangles[i + 2]))
+	
+	return return_triangles
+
+enum CIRC {
+	INCOMPLETE,
+	COMPLETE,
+	INSIDE
+}
+
+func circumcircle(xp, yp, x1, y1, x2, y2, x3, y3):
 	var xc
 	var yc
-	if abs(p2.y - p1.y) < float_Epsilon:
-		m2 = -(p3.x - p2.x) / (p3.y - p2.y)
-		mx2 = (p2.x + p3.x) * 0.5
-		my2 = (p2.y + p3.y) * 0.5
-		xc = (p2.x + p1.x) * 0.5
+	var y1y2 = abs(y1 - y2)
+	var y2y3 = abs(y2 - y3)
+	if y1y2 < float_Epsilon:
+		if y2y3 < float_Epsilon: return CIRC.INCOMPLETE
+		var m2 = -(x3 - x2) / (y3 - y2)
+		var mx2 = (x2 + x3) / 2.0
+		var my2 = (y2 + y3) / 2.0
+		xc = (x2 + x1) / 2.0
 		yc = m2 * (xc - mx2) + my2
-	elif abs(p3.y - p2.y) < float_Epsilon:
-		m1 = -(p2.x - p1.x) / (p2.y - p1.y)
-		mx1 = (p1.x + p2.x) * 0.5
-		my1 = (p1.y + p2.y) * 0.5
-		xc = (p3.x + p2.x) * 0.5
-		yc = m1 * (xc - mx1) + my1
 	else:
-		m1 = -(p2.x - p1.x) / (p2.y - p1.y)
-		m2 = -(p3.x - p2.x) / (p3.y - p2.y)
-		mx1 = (p1.x + p2.x) * 0.5
-		mx2 = (p2.x + p3.x) * 0.5
-		my1 = (p1.y + p2.y) * 0.5
-		my2 = (p2.y + p3.y) * 0.5
-		xc = (m1 * mx1 - m2 * mx2 + my2 - my1) / (m1 - m2)
-		yc = m1 * (xc - mx1) + my1
-		
-	var dx = p2.x - xc
-	var dy = p2.y - yc
+		var m1 = -(x2 - x1) / (y2 - y1)
+		var mx1 = (x1 + x2) / 2.0
+		var my1 = (y1 + y2) / 2.0
+		if y2y3 < float_Epsilon:
+			xc = (x3 + x2) / 2.0
+			yc = m1 * (xc - mx1) + my1
+		else:
+			var m2 = -(x3 - x2) / (y3 - y2)
+			var mx2 = (x2 + x3) / 2.0
+			var my2 = (y2 + y3) / 2.0
+			xc = (m1 * mx1 - m2 * mx2 + my2 - my1) / (m1 - m2)
+			yc = m1 * (xc - mx1) + my1
+
+	var dx = x2 - xc
+	var dy = y2 - yc
 	var rsqr = dx * dx + dy * dy
-	dx = p.x - xc
-	dy = p.y - yc
-	var drsqr = dx * dx + dy * dy
-	return (drsqr <= rsqr)
+
+	dx = xp - xc
+	dy = yp - yc
+	if dx * dx + dy * dy - rsqr <= float_Epsilon: return CIRC.INSIDE
+	return CIRC.COMPLETE if xp > xc and dx > rsqr else CIRC.INCOMPLETE
 
 # Some extra calculations
 
@@ -307,13 +363,13 @@ func create_circumcenter(tri):
 
 func create_connected(tri):
 	# basically find any other triangles that share 2 vertices
-	var this = [tri.p1, tri.p2, tri.p3]
+	var pt_inds = [tri.p1, tri.p2, tri.p3]
 	var connected_tris = []
 	var i = 0
 	while connected_tris.size() < 3 and i < tris.size():
 		var score = 0
 		var other = [tris[i].p1, tris[i].p2, tris[i].p3]
-		for t in this:
+		for t in pt_inds:
 			for o in other:
 				score += 1 if t == o else 0
 		if score == 2:
