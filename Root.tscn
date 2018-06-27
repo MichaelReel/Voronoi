@@ -2,7 +2,7 @@
 
 [ext_resource path="res://Generator.gd" type="Script" id=1]
 [ext_resource path="res://Delaunay.gd" type="Script" id=2]
-[ext_resource path="res://Voronoi.gd" type="Script" id=3]
+[ext_resource path="res://Voronoi2.gd" type="Script" id=3]
 [ext_resource path="res://CameraControl.gd" type="Script" id=4]
 
 [sub_resource type="Shader" id=1]
@@ -67,8 +67,6 @@ mesh = null
 skeleton = NodePath("..")
 script = ExtResource( 3 )
 _sections_unfolded = [ "Geometry" ]
-wireframe = true
-smooth_shading = false
 
 [node name="BaseOutline" type="MeshInstance" parent="Generator" index="2"]
 

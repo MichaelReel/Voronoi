@@ -23,9 +23,9 @@ func _ready():
 	print("Process points via delaunay and voronoi")
 	$Delaunay.points = delaunay_vertices
 	$Delaunay.do_delaunay()
-	# $Voronoi.delaunay_verts = delaunay_vertices
-	# $Voronoi.delaunay_tris = $Delaunay.tris
-	# $Voronoi.do_voronoi()
+
+	$Voronoi.delaunay_verts = delaunay_vertices
+	$Voronoi.do_voronoi()
 
 	# # Use lloyds to reposition the vertices
 	# print("Improve vertices")
@@ -36,21 +36,25 @@ func _ready():
 	# print("Process points via delaunay and voronoi")
 	# $Delaunay.points = delaunay_vertices
 	# $Delaunay.do_delaunay()
-	# $Voronoi.delaunay_verts = delaunay_vertices
+	# $Voronoi.delaunay_verts = $Delaunay.verts
 	# $Voronoi.delaunay_tris = $Delaunay.tris
 
-	$Voronoi.do_voronoi()
+	# $Voronoi.do_voronoi()
 
 func create_vertices():
+	# # Fully random point set:
 	# for i in range(vertex_count):
 	# 	delaunay_vertices.append(Vector3(randf(), 0, randf()))
 	
-	# Some debuggy type stuff:
-	var p = 1.0 / 32
+	# Some debugging grid point set (ignoring vertex_count):
+	var p = 1.0 / 64
 	var i = 1.0 / 16
 	for x in range(16):
 		for z in range(16):
-			delaunay_vertices.append(Vector3(p + (x * i), 0, p + (z * i)))
+			# # Grid: 
+			# delaunay_vertices.append(Vector3(p * 2 + (x * i), 0, p * 2 + (z * i)))
+			# Wobbly Grid:
+			delaunay_vertices.append(Vector3(p + (x * i) + (randf() * p), 0, p + (z * i) + (randf() * p)))
 
 
 func improve_vertices(var cells):
