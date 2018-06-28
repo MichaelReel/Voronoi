@@ -68,32 +68,37 @@ func CreateSurface():
 	var v_ind = 0
 	var vert_count_str = ""
 
-	for edge in edge_list:
-		var p1 = edge.p1
-		var p2 = edge.p2
-		
-		var vert_ind1 = verts.find(p1)
-		if vert_ind1 < 0:
-			verts.append(p1.get_xz_vertex())
-			vert_count_str += str(verts[v_ind]) + "\n"
-			vert_ind1 = v_ind
-			v_ind += 1
-		
-		var vert_ind2 = verts.find(p2)
-		if vert_ind2 < 0:
-			verts.append(p2.get_xz_vertex())
-			vert_count_str += str(verts[v_ind]) + "\n"
-			vert_ind2 = v_ind
-			v_ind += 1
-		
-		draw_edges.append(DrawEdge.new(vert_ind1, vert_ind2))
+	for site in sites:
+		# Can we set a colour per site?
+
+		# Draw all edges attached to this site
+		for edge in site.site_edges:
+			var p1 = edge.p1
+			var p2 = edge.p2
+			
+			var vert_ind1 = verts.find(p1)
+			if vert_ind1 < 0:
+				verts.append(p1.get_xz_vertex())
+				vert_count_str += str(verts[v_ind]) + "\n"
+				vert_ind1 = v_ind
+				v_ind += 1
+			
+			var vert_ind2 = verts.find(p2)
+			if vert_ind2 < 0:
+				verts.append(p2.get_xz_vertex())
+				vert_count_str += str(verts[v_ind]) + "\n"
+				vert_ind2 = v_ind
+				v_ind += 1
+			
+			draw_edges.append(DrawEdge.new(vert_ind1, vert_ind2))
 
 	# print(vert_count_str)
 
 	# Add vertices and UV to SurfaceTool
 	var i = 0
 	while i < verts.size():
-		surfTool.add_uv(Vector2(verts[i].x/100+0.5,verts[i].z/100+0.5))
+		# surfTool.add_uv(Vector2(verts[i].x/100+0.5,verts[i].z/100+0.5))
+		surfTool.add_color(Color(1.0,1.0,0.0,1.0))
 		surfTool.add_vertex(verts[i])
 		i += 1
 	
@@ -167,6 +172,17 @@ class Point:
 	
 	func get_xz_vertex():
 		return Vector3(x, 0, z)
+
+class SitePoint:
+	extends Point
+	var site_edges
+
+	func _init(nx, nz).(nx, nz):
+		site_edges = []
+	
+	func add_edge(edge):
+		if not site_edges.has(edge):
+			site_edges.append(edge)
 
 class Event:
 	var p
@@ -276,6 +292,9 @@ class VoronoiEdge:
 	func _init(s1, s2):
 		site1 = s1
 		site2 = s2
+		site1.add_edge(self)
+		site2.add_edge(self)
+		# Work out the gradient
 		is_vertical = (s1.z == s2.z)
 		is_horizontal = (s1.x == s2.x)
 		var midpoint = s1.mid_point(s2, Point.new(0,0))
@@ -514,7 +533,7 @@ func create_voronoi_graph():
 		if dv.x > MAX_DIM or dv.x < MIN_DIM or dv.x > MAX_DIM or dv.z < MIN_DIM:
 			print ("Invalid input: ", str(dv))
 			return
-		var site = Point.new(dv.x, dv.z)
+		var site = SitePoint.new(dv.x, dv.z)
 		sites.append(site)
 		events.add(Event.new(site))
 	
@@ -535,6 +554,23 @@ func create_voronoi_graph():
 	# Handling infinite points
 	sweep_loc = MIN_DIM
 	break_points.finish()
+
+	# Need to remove edges that aren't connected at both ends
+	for edge in edge_list:
+		# for each edge in site, see how many have points that connect to this one
+		var match1 = false
+		var match2 = false
+		for site in [edge.site1, edge.site2]:
+			for o_edge in site.site_edges:
+				if edge == o_edge:
+					continue
+				if edge.p1.equals(o_edge.p1) or edge.p1.equals(o_edge.p2):
+					match1 = true
+				if edge.p2.equals(o_edge.p1) or edge.p2.equals(o_edge.p2):
+					match2 = true
+			if not (match1 and match2):
+				site.site_edges.erase(edge)
+
 
 func handle_site_event(cur):
 	# Deal with first point case
