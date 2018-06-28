@@ -20,6 +20,11 @@ var status_text = ""      # Status text
 
 var surfTool = SurfaceTool.new() # need to generate mesh
 
+# Hide/Show
+func _input(event):
+	if event.is_action_pressed("toggle_voronoi"):
+		visible = not visible
+
 func update_counters():
 	var s = "sites: " + str(sites.size())
 	s += "\nEdges: " + str(edge_list.size())
@@ -70,18 +75,20 @@ func CreateSurface():
 		var vert_ind1 = verts.find(p1)
 		if vert_ind1 < 0:
 			verts.append(p1.get_xz_vertex())
+			vert_count_str += str(verts[v_ind]) + "\n"
 			vert_ind1 = v_ind
 			v_ind += 1
 		
 		var vert_ind2 = verts.find(p2)
 		if vert_ind2 < 0:
 			verts.append(p2.get_xz_vertex())
+			vert_count_str += str(verts[v_ind]) + "\n"
 			vert_ind2 = v_ind
 			v_ind += 1
 		
 		draw_edges.append(DrawEdge.new(vert_ind1, vert_ind2))
 
-	print(vert_count_str)
+	# print(vert_count_str)
 
 	# Add vertices and UV to SurfaceTool
 	var i = 0
@@ -203,7 +210,7 @@ class ArcKey:
 		
 		var my_mid = my_left.mid_point(my_right, Point.new(0,0))
 		var your_mid = your_left.mid_point(your_right, Point.new(0,0))
-		return my_mid.campareTo(your_mid)
+		return my_mid.compare_to(your_mid)
 
 class ArcQuery:
 	extends ArcKey
@@ -263,23 +270,31 @@ class VoronoiEdge:
 	var m        # - parameters for line edge rests on
 	var b        # /
 	var is_vertical
+	var is_horizontal
 	var p1
 	var p2
 	func _init(s1, s2):
 		site1 = s1
 		site2 = s2
 		is_vertical = (s1.z == s2.z)
+		is_horizontal = (s1.x == s2.x)
+		var midpoint = s1.mid_point(s2, Point.new(0,0))
 		if is_vertical:
-			m = 0
+			m = INF
 			b = 0
+		elif is_horizontal:
+			m = 0
+			b = midpoint.z
 		else:
 			m = -1.0 / ((s1.z - s2.z) / (s1.x - s2.x))
-			var midpoint = s1.mid_point(s2, Point.new(0,0))
 			b = midpoint.z - m * midpoint.x
 	
 	func intersection(that):
 		if m == that.m and b != that.b and is_vertical == that.is_vertical:
 			# No intersection
+			return null
+		if is_horizontal and that.is_horizontal and b != that.b:
+			# Can't intersect either
 			return null
 		var x
 		var z
@@ -331,11 +346,17 @@ class BreakPoint:
 		var x
 		var z
 
-		# Handle vertical line case
+		# Handle grid line cases
 		if s1.z == s2.z:
-			x = (s1.x + s2.x) / 2.0
-			# parabola focus-directrix definition ?
-			z = (sq(x - s1.x) + sq(s1.z) - sq(l)) / (2.0 * (s1.z - l))
+			# Handle Horizontal line case - on sweep loc
+			if s1.z == l:
+				x = (s1.x + s2.x) / 2.0
+				z = INF
+			else:
+				# Handle vertical line case 
+				x = (s1.x + s2.x) / 2.0
+				# parabola focus-directrix definition ?
+				z = (sq(x - s1.x) + sq(s1.z) - sq(l)) / (2.0 * (s1.z - l))
 		else:
 			# Intersect the line of the edge with the parabola of the higher point
 			var px = s1.x if s1.z > s2.z else s2.x
@@ -411,6 +432,9 @@ class ArcMap:
 
 	func empty():
 		return keys.empty()
+
+	func size():
+		return len(keys)
 
 	func floor_entry(arc):
 		# Returns an arc associated with the greatest key 
