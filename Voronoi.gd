@@ -38,9 +38,6 @@ func do_voronoi():
 	# Do the Voronoi calculations
 	create_voronoi_graph()
 	
-	# Use SurfaceTool to create a surface
-	CreateSurface()
-	
 	# Create a mesh from the SurfaceTool
 	self.set_mesh(CreateMesh())
 	
@@ -56,58 +53,29 @@ class DrawEdge:
 		p1 = pt1
 		p2 = pt2
 
-func CreateSurface():
+func CreateSurface(site):
+	# This draws a single site as a triangle strip
 
 	surfTool.clear()
 	# Wireframe mode only unless we split voronoi polygons
-	surfTool.begin(Mesh.PRIMITIVE_LINES)
+	surfTool.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	
 	# Create draw lines all the edges
-	var verts = []
-	var draw_edges = []
 	var v_ind = 0
-	var vert_count_str = ""
 
-	for site in sites:
-		# Can we set a colour per site?
+	surfTool.add_color(Color(1.0,randf(),0.0,1.0))
 
-		# Draw all edges attached to this site
-		for edge in site.site_edges:
-			var p1 = edge.p1
-			var p2 = edge.p2
-			
-			var vert_ind1 = verts.find(p1)
-			if vert_ind1 < 0:
-				verts.append(p1.get_xz_vertex())
-				vert_count_str += str(verts[v_ind]) + "\n"
-				vert_ind1 = v_ind
-				v_ind += 1
-			
-			var vert_ind2 = verts.find(p2)
-			if vert_ind2 < 0:
-				verts.append(p2.get_xz_vertex())
-				vert_count_str += str(verts[v_ind]) + "\n"
-				vert_ind2 = v_ind
-				v_ind += 1
-			
-			draw_edges.append(DrawEdge.new(vert_ind1, vert_ind2))
+	# for point in site.get_edge_vertices():
+	for point in site.bound_verts:
+		surfTool.add_vertex(point.get_xz_vertex())
+		surfTool.add_index(v_ind)
+		v_ind += 1
 
-	# print(vert_count_str)
-
-	# Add vertices and UV to SurfaceTool
-	var i = 0
-	while i < verts.size():
-		# surfTool.add_uv(Vector2(verts[i].x/100+0.5,verts[i].z/100+0.5))
-		surfTool.add_color(Color(1.0,1.0,0.0,1.0))
-		surfTool.add_vertex(verts[i])
-		i += 1
+		surfTool.add_vertex(site.get_xz_vertex())
+		surfTool.add_index(v_ind)
+		v_ind += 1
 	
-	# Add indices to SurfaceTool
-	i = 0
-	while i < draw_edges.size():
-		surfTool.add_index(draw_edges[i].p1)
-		surfTool.add_index(draw_edges[i].p2)
-		i += 1
+	surfTool.add_index(0) # first non-center point
 
 	return surfTool
 
@@ -116,9 +84,14 @@ func CreateMesh():
 	# Create a new mesh
 	var mesh = Mesh.new()
 
-	# Create mesh with SurfaceTool
-	surfTool.index()
-	surfTool.commit(mesh)
+	for site in sites:
+		# Can we set a colour per site?
+		# Use SurfaceTool to create a surface
+		CreateSurface(site)
+
+		# Create mesh with SurfaceTool
+		surfTool.index()
+		surfTool.commit(mesh)
 	
 	return mesh
 
@@ -172,10 +145,72 @@ class Point:
 	
 	func get_xz_vertex():
 		return Vector3(x, 0, z)
+	
+	func _str():
+		return "[" + str(self.get_instance_id()) + ":(" + str(x) + "," + str(z) + ")]"
+
+class Bounds:
+	# Used by site point to check bounds breaches
+	var boundary
+	func _init():
+		# The order here might need corrected:
+		boundary = [ \
+			Point.new(MIN_DIM, MIN_DIM), \
+			Point.new(MAX_DIM, MIN_DIM), \
+			Point.new(MAX_DIM, MAX_DIM), \
+			Point.new(MIN_DIM, MAX_DIM) \
+		]
+	
+	static func is_inside(a, b, c):
+		return Point.ccw(a, b, c) > 0
+	
+	static func intersection(a, b, p, q):
+		var A1 = b.z - a.z
+		var B1 = a.x - b.x
+		var C1 = A1 * a.x + B1 * a.z
+
+		var A2 = q.z - p.z
+		var B2 = p.x - q.x
+		var C2 = A2 * p.x + B2 * p.z
+
+		var det = A1 * B2 - A2 * B1
+		var x = (B2 * C1 - B1 * C2) / det
+		var z = (A1 * C2 - A2 * C1) / det
+
+		return Point.new(x, z)
+
+	func clip_site(site):
+		var result = site.get_edge_vertices()  # becomes input on first iter
+		var blen = len(boundary)
+		var intersected = false
+		for i in blen:
+
+			var vlen = len(result)
+			var input = result
+			result = []
+
+			var A = boundary[(i + blen - 1) % blen]
+			var B = boundary[i]
+
+			for j in vlen:
+				var P = input[(j + vlen -1) % vlen]
+				var Q = input[j]
+
+				if is_inside(A, B, Q):
+					if not is_inside(A, B, P):
+						result.append(intersection(A, B, P, Q))
+						intersected = true
+					result.append(Q)
+				elif is_inside(A, B, P):
+					result.append(intersection(A, B, P, Q))
+					intersected = true
+		
+		site.bound_verts = result
 
 class SitePoint:
 	extends Point
 	var site_edges
+	var bound_verts
 
 	func _init(nx, nz).(nx, nz):
 		site_edges = []
@@ -183,6 +218,19 @@ class SitePoint:
 	func add_edge(edge):
 		if not site_edges.has(edge):
 			site_edges.append(edge)
+	
+	func sort_vertices(a, b):
+		# Probably won't work :-(
+		return Point.ccw(a, b, self) <= 0
+
+	func get_edge_vertices():
+		var vertices = []
+		for edge in site_edges:
+			for point in [edge.p1, edge.p2]:
+				if not vertices.has(point):
+					var ins_ind = vertices.bsearch_custom(point, self, "sort_vertices")
+					vertices.insert(ins_ind, point)
+		return vertices
 
 class Event:
 	var p
@@ -570,7 +618,11 @@ func create_voronoi_graph():
 					match2 = true
 			if not (match1 and match2):
 				site.site_edges.erase(edge)
-
+	
+	# For each site, tidy up edges that exit the bounds
+	var bounds = Bounds.new()
+	for site in sites:
+		bounds.clip_site(site)
 
 func handle_site_event(cur):
 	# Deal with first point case
@@ -582,7 +634,7 @@ func handle_site_event(cur):
 	var arc_above = arcs.floor_entry(ArcQuery.new(cur.p))
 
 	# Deal with the degenerate case where the first two points are at the same y value
-	if arcs.empty() and abs(arc_above.site.z - cur.p.z) < 0.000001:
+	if arcs.empty() and abs(arc_above.site.z - cur.p.z) < Point.EPSILON:
 		var new_edge = VoronoiEdge.new(arc_above.site, cur.p)
 		new_edge.p1 = Point.new((cur.p.x + arc_above.site.x) / 2.0, INF)
 		var new_break = BreakPoint.new(arc_above.site, cur.p, new_edge, false, self)
