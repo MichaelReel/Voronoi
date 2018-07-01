@@ -1,6 +1,5 @@
 extends MeshInstance
 
-
 # Input set of sites as Vector3s with x and z set
 var delaunay_verts
 
@@ -26,10 +25,6 @@ var done = false
 func _input(event):
 	if event.is_action_pressed("toggle_voronoi"):
 		visible = not visible
-	if event.is_action_pressed("do_improve"):
-		if done:
-			done = false
-			improve_vertices()
 
 func update_counters():
 	var s = "sites: " + str(sites.size())
@@ -47,7 +42,7 @@ func do_voronoi():
 	create_voronoi_graph()
 	
 	# Create a mesh from the voronoi site info
-	self.set_mesh(CreateMesh())
+	self.set_mesh(create_mesh())
 	
 	generation_time = OS.get_ticks_msec() - generation_time
 	update_counters()
@@ -55,7 +50,7 @@ func do_voronoi():
 
 	done = true
 
-func CreateSurface(site):
+func create_surface(site):
 	# This draws a single site as a triangle strip
 
 	surfTool.clear()
@@ -85,7 +80,7 @@ func CreateSurface(site):
 
 	return surfTool
 
-func CreateMesh():
+func create_mesh():
 
 	# Create a new mesh
 	var mesh = Mesh.new()
@@ -93,7 +88,7 @@ func CreateMesh():
 	for site in sites:
 		# Can we set a colour per site?
 		# Use SurfaceTool to create a surface
-		CreateSurface(site)
+		create_surface(site)
 
 		# Create mesh with SurfaceTool
 		surfTool.index()
@@ -381,7 +376,6 @@ class VoronoiEdge:
 			x = (that.b - b) / (m - that.m)
 			z = m * x + b
 		return Point.new(x, z)
-	
 
 class BreakPoint:
 	var v               # Voronoi Graph - For the sweep loc ?
