@@ -6,6 +6,7 @@ var delaunay_verts
 
 const MIN_DIM = 0.0
 const MAX_DIM = 1.0
+const IMPROVE_SPEED = 1.5
 
 var sweep_loc = MAX_DIM
 var sites = []            # Points - need this?
@@ -19,11 +20,16 @@ var generation_time = 0.0 # How long does vonoroi take?
 var status_text = ""      # Status text
 
 var surfTool = SurfaceTool.new() # need to generate mesh
+var done = false
 
 # Hide/Show
 func _input(event):
 	if event.is_action_pressed("toggle_voronoi"):
 		visible = not visible
+	if event.is_action_pressed("do_improve"):
+		if done:
+			done = false
+			improve_vertices()
 
 func update_counters():
 	var s = "sites: " + str(sites.size())
@@ -33,25 +39,21 @@ func update_counters():
 	status_text = s
 
 func do_voronoi():
+	done = false
+
 	generation_time = OS.get_ticks_msec()
 	
 	# Do the Voronoi calculations
 	create_voronoi_graph()
 	
-	# Create a mesh from the SurfaceTool
+	# Create a mesh from the voronoi site info
 	self.set_mesh(CreateMesh())
 	
 	generation_time = OS.get_ticks_msec() - generation_time
 	update_counters()
 	print(status_text)
 
-
-class DrawEdge:
-	var p1
-	var p2
-	func _init(pt1, pt2):
-		p1 = pt1
-		p2 = pt2
+	done = true
 
 func CreateSurface(site):
 	# This draws a single site as a triangle strip
@@ -67,14 +69,18 @@ func CreateSurface(site):
 
 	# for point in site.get_edge_vertices():
 	for point in site.bound_verts:
+		
+		surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
 		surfTool.add_vertex(point.get_xz_vertex())
 		surfTool.add_index(v_ind)
 		v_ind += 1
 
+		surfTool.add_color(Color(1.0, 0.0, 0.0, 1.0))
 		surfTool.add_vertex(site.get_xz_vertex())
 		surfTool.add_index(v_ind)
 		v_ind += 1
 	
+	surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
 	surfTool.add_index(0) # first non-center point
 
 	return surfTool
@@ -604,6 +610,9 @@ func create_voronoi_graph():
 	break_points.finish()
 
 	# Need to remove edges that aren't connected at both ends
+	# Not doing this leaves some terrible artifacts in the graph
+	# Doing this kills off some of the cells on the boundaries,
+	# but is probably the lesser of 2 evils here
 	for edge in edge_list:
 		# for each edge in site, see how many have points that connect to this one
 		var match1 = false
@@ -616,14 +625,16 @@ func create_voronoi_graph():
 					match1 = true
 				if edge.p2.equals(o_edge.p1) or edge.p2.equals(o_edge.p2):
 					match2 = true
-			if not (match1 and match2):
-				site.site_edges.erase(edge)
+		if not (match1 and match2):
+			edge.site1.site_edges.erase(edge)
+			edge.site2.site_edges.erase(edge)
+			print ("removing edge from sites ", str(edge.site1), ", ", str(edge.site2))
 	
 	# For each site, tidy up edges that exit the bounds
 	var bounds = Bounds.new()
 	for site in sites:
 		bounds.clip_site(site)
-
+	
 func handle_site_event(cur):
 	# Deal with first point case
 	if arcs.empty():
@@ -757,3 +768,29 @@ func check_for_circle_event(a):
 		var ce = CircleEvent.new(a, circle_event_point, circle_center)
 		arcs.put(a, ce)
 		events.add(ce)
+
+func improve_vertices():
+	# We can use Lloyds algorithm for to recalculate the delaunay vertices
+	# As long as delaunay and voronoi have already been processed
+	# The new set of points need to be processed againt to see the 
+	# results of convergence
+	delaunay_verts.clear()
+	for site in sites:
+		var nucleus = site.get_xz_vertex()
+		var centroid = get_average_vertex(site.bound_verts)
+		var movement = centroid - site.get_xz_vertex()
+		movement *= IMPROVE_SPEED
+
+		delaunay_verts.append(nucleus + movement)
+	
+	do_voronoi()
+
+func get_average_vertex(var vertex_list):
+	var vert_avg = Vector3()
+	var vert_count = len(vertex_list)
+	if vert_count > 0:
+		for vert in vertex_list:
+			vert_avg += vert.get_xz_vertex()
+		vert_avg /= vert_count
+
+	return vert_avg

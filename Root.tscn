@@ -36,6 +36,7 @@ seedy = 0
 [node name="Delaunay" type="MeshInstance" parent="Generator" index="0"]
 
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0 )
+visible = false
 layers = 1
 material_override = SubResource( 2 )
 cast_shadow = 1
