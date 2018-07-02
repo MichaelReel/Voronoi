@@ -62,19 +62,16 @@ func create_mesh():
 
 		Mesh.PRIMITIVE_TRIANGLES:
 			surfTool.begin(Mesh.PRIMITIVE_TRIANGLES)
-			for vert in input.vertices:
-				surfTool.add_vertex(vert.pos)
 			for tri in input.triangles:
 				surfTool.add_color(Color(1.0, 0.0, 1.0, 1.0))
-				surfTool.add_vertex(tri.v1.index)
+				surfTool.add_vertex(tri.v1.pos)
 				surfTool.add_color(Color(1.0, 1.0, 0.0, 1.0))
-				surfTool.add_vertex(tri.v2.index)
+				surfTool.add_vertex(tri.v3.pos)
 				surfTool.add_color(Color(0.0, 1.0, 1.0, 1.0))
-				surfTool.add_vertex(tri.v3.index)
+				surfTool.add_vertex(tri.v2.pos)
 			
 			# surfTool.index()
 			surfTool.generate_normals()
-			
 
 		_:
 			print("Unsupported render type!")

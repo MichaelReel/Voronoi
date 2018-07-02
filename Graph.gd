@@ -142,8 +142,8 @@ func add_triangle(vec1, vec2, vec3):
     # Add triangle
     var tri = Triangle.new(el[0], el[1], el[2], vl[0], vl[1], vl[2])
     var t_ind = triangles.bsearch_custom(tri, Triangle, "sort")
-    if triangles and not tri.equals(triangles[t_ind]):
-        triangles.append(tri)
+    # Not super worried about duplicates here
+    triangles.insert(t_ind, tri)
 
 func update_vertex_indices():
     # Vertices should already be ordered and unique
