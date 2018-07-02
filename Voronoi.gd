@@ -21,6 +21,9 @@ var status_text = ""      # Status text
 var surfTool = SurfaceTool.new() # need to generate mesh
 var done = false
 
+# This is the final output: a basic collection of triangles
+var Graph = load("res://Graph.gd")
+
 # Hide/Show
 func _input(event):
 	if event.is_action_pressed("toggle_voronoi"):
@@ -49,52 +52,6 @@ func do_voronoi():
 	print(status_text)
 
 	done = true
-
-func create_surface(site):
-	# This draws a single site as a triangle strip
-
-	surfTool.clear()
-	# Wireframe mode only unless we split voronoi polygons
-	surfTool.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	
-	# Create draw lines all the edges
-	var v_ind = 0
-
-	surfTool.add_color(Color(1.0,randf(),0.0,1.0))
-
-	# for point in site.get_edge_vertices():
-	for point in site.bound_verts:
-		
-		surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
-		surfTool.add_vertex(point.get_xz_vertex())
-		surfTool.add_index(v_ind)
-		v_ind += 1
-
-		surfTool.add_color(Color(1.0, 0.0, 0.0, 1.0))
-		surfTool.add_vertex(site.get_xz_vertex())
-		surfTool.add_index(v_ind)
-		v_ind += 1
-	
-	surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
-	surfTool.add_index(0) # first non-center point
-
-	return surfTool
-
-func create_mesh():
-
-	# Create a new mesh
-	var mesh = Mesh.new()
-
-	for site in sites:
-		# Can we set a colour per site?
-		# Use SurfaceTool to create a surface
-		create_surface(site)
-
-		# Create mesh with SurfaceTool
-		surfTool.index()
-		surfTool.commit(mesh)
-	
-	return mesh
 
 class Point:
 	const EPSILON = 0.0000001
@@ -145,7 +102,7 @@ class Point:
 		return _vect.distance_to(that._vect)
 	
 	func get_xz_vertex():
-		return Vector3(x, 0, z)
+		return Vector3(x, 0.0, z)
 	
 	func _str():
 		return "[" + str(self.get_instance_id()) + ":(" + str(x) + "," + str(z) + ")]"
@@ -622,7 +579,7 @@ func create_voronoi_graph():
 		if not (match1 and match2):
 			edge.site1.site_edges.erase(edge)
 			edge.site2.site_edges.erase(edge)
-			print ("removing edge from sites ", str(edge.site1), ", ", str(edge.site2))
+			# print ("removing edge from sites ", str(edge.site1), ", ", str(edge.site2))
 	
 	# For each site, tidy up edges that exit the bounds
 	var bounds = Bounds.new()
@@ -788,3 +745,65 @@ func get_average_vertex(var vertex_list):
 		vert_avg /= vert_count
 
 	return vert_avg
+
+func create_surface(site):
+	# This draws a single site as a triangle strip
+	surfTool.clear()
+	# Wireframe mode only unless we split voronoi polygons
+	surfTool.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	# Create draw lines all the edges
+	var v_ind = 0
+	var v3 = site.get_xz_vertex()        # Always the center point
+
+	# for point in site.get_edge_vertices():
+	for point in site.bound_verts:
+		
+		var v1 = point.get_xz_vertex()
+		surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
+		surfTool.add_vertex(v1)
+		surfTool.add_index(v_ind)
+		v_ind += 1
+
+		surfTool.add_color(Color(1.0, 0.0, 0.0, 1.0))
+		surfTool.add_vertex(v3)
+		surfTool.add_index(v_ind)
+		v_ind += 1
+	
+	surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
+	surfTool.add_index(0) # first non-center point
+
+	return surfTool
+
+func create_mesh():
+	# Create a new mesh
+	var mesh = Mesh.new()
+
+	for site in sites:
+		# Use SurfaceTool to create a surface
+		# Also, update the graph
+		create_surface(site)
+
+		# Create mesh with SurfaceTool
+		surfTool.index()
+		surfTool.commit(mesh)
+	
+	return mesh
+
+func create_graph():
+	var graph = Graph.new()
+
+	for site in sites:
+		var link_vert = site.bound_verts.back().get_xz_vertex()
+		var v3 = site.get_xz_vertex()        # Always the center point
+		var v2 = link_vert                   # The previous vertex
+
+		# for point in site.get_edge_vertices():
+		for point in site.bound_verts:
+			var v1 = point.get_xz_vertex()
+			graph.add_triangle(v1, v2, v3)
+			v2 = v1
+
+		var v1 = link_vert
+		graph.add_triangle(v1, v2, v3)
+
+	return graph

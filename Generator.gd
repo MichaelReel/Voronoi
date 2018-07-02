@@ -24,6 +24,10 @@ func _ready():
 	$Voronoi.do_voronoi()
 	for i in improve_runs:
 		$Voronoi.improve_vertices()
+	
+	var graph = $Voronoi.create_graph()
+	$HeightMap.input = graph
+	$HeightMap.do_heightmap()
 
 func create_vertices():
 	# Fully random point set:
