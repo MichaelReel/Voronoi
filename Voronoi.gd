@@ -759,17 +759,17 @@ func create_surface(site):
 	for point in site.bound_verts:
 		
 		var v1 = point.get_xz_vertex()
-		surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
+		surfTool.add_color(Color(0.5, 0.5, 1.0, 1.0))
 		surfTool.add_vertex(v1)
 		surfTool.add_index(v_ind)
 		v_ind += 1
 
-		surfTool.add_color(Color(1.0, 0.0, 0.0, 1.0))
+		surfTool.add_color(Color(0.0, 0.0, 1.0, 1.0))
 		surfTool.add_vertex(v3)
 		surfTool.add_index(v_ind)
 		v_ind += 1
 	
-	surfTool.add_color(Color(1.0, 1.0, 1.0, 1.0))
+	surfTool.add_color(Color(0.5, 0.5, 1.0, 1.0))
 	surfTool.add_index(0) # first non-center point
 
 	return surfTool
@@ -807,3 +807,16 @@ func create_graph():
 		graph.add_triangle(v1, v2, v3)
 
 	return graph
+
+func clear_voronoi_data():
+	sites.clear()
+	edge_list.clear()
+	break_points.clear()
+	arcs.clear()
+	events.clear()
+
+	sites = null
+	edge_list = null
+	break_points = null
+	arcs = null
+	events = null

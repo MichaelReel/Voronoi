@@ -26,6 +26,8 @@ func _ready():
 		$Voronoi.improve_vertices()
 	
 	var graph = $Voronoi.create_graph()
+	$Voronoi.clear_voronoi_data()
+
 	$HeightMap.input = graph
 	$HeightMap.do_heightmap()
 

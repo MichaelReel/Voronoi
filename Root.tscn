@@ -37,6 +37,7 @@ improve_runs = 5
 
 [node name="Voronoi" type="MeshInstance" parent="Generator" index="0"]
 
+visible = false
 layers = 1
 material_override = SubResource( 2 )
 cast_shadow = 1
@@ -69,6 +70,7 @@ script = ExtResource( 3 )
 [node name="BaseOutline" type="MeshInstance" parent="Generator" index="2"]
 
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -0.01, 0.5 )
+visible = false
 layers = 1
 material_override = null
 cast_shadow = 1
