@@ -31,6 +31,12 @@ func _ready():
 	$HeightMap.input = graph
 	$HeightMap.do_heightmap()
 
+	# graph will have been updated by heightmap
+	# (This flow will need a little work to get right)
+	# Get FlowDiagram to draw the flows created in height map
+	$FlowDiagram.input = graph
+	$FlowDiagram.do_flowmesh()
+
 func create_vertices():
 	# Fully random point set:
 	for i in range(vertex_count):
