@@ -106,7 +106,7 @@ class Edge:
 		if Vertex.sort(a.v1, b.v1):
 			return true
 		elif (a.v1.equals(b.v1)):
-			if Vertex.sort(b.v2, b.v2):
+			if Vertex.sort(a.v2, b.v2):
 				return true
 		return false
 	
