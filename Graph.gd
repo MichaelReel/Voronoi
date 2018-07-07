@@ -25,6 +25,8 @@ class Vertex:
 	# Water flow tree
 	var dependants      # Uphill
 	var dependancy      # Downhill
+	var closed
+	var water_height
 
 	func _init(vertex):
 		pos        = vertex
@@ -32,6 +34,7 @@ class Vertex:
 		tris       = []
 		connectors = []
 		dependants = []
+		closed     = false
 
 	static func sort(a, b):
 		# Sort by z then x then y
@@ -75,6 +78,18 @@ class Vertex:
 		else:
 			return false
 
+	static func place_vertex_in_list(list, v):
+		var v_ind = list.bsearch_custom(v, v, "sort")
+		if v_ind >= 0 and v_ind < len(list) and v.equals(list[v_ind]):
+			v = list[v_ind]
+		else:
+			list.insert(v_ind, v)
+		return v
+
+	func set_height(new_height):
+		pos.y = new_height
+		water_height = new_height
+
 class Edge:
 	var v1    # Vertex
 	var v2    # Vertex
@@ -93,13 +108,13 @@ class Edge:
 			v2 = vert1
 
 		# Update joined vertices:
-		v1.edges.append(self)
-		v1.connectors.append(v2)
-		v2.edges.append(self)
-		v2.connectors.append(v1)
+		place_edge_in_list(v1.edges, self)
+		Vertex.place_vertex_in_list(v1.connectors, v2)
+		place_edge_in_list(v2.edges, self)
+		Vertex.place_vertex_in_list(v2.connectors, v1)
 
 		# Initialise triangle list
-		tris = []
+		tris   = []
 
 	static func sort(a, b):
 		# Sort by first vertex first - vertices should already be sorted
@@ -113,6 +128,14 @@ class Edge:
 	func equals(b):
 		# This assumes vertices are in sorted order
 		return v1.equals(b.v1) and v2.equals(b.v2)
+		
+	static func place_edge_in_list(list, e):
+		var e_ind = list.bsearch_custom(e, e, "sort")
+		if e_ind >= 0 and e_ind < len(list) and e.equals(list[e_ind]):
+			e = list[e_ind]
+		else:
+			list.insert(e_ind, e)
+		return e
 
 class Triangle:
 	var e1
@@ -130,7 +153,7 @@ class Triangle:
 		v2 = vert2
 		v3 = vert3
 		for c in [edge1, edge2, edge3, vert1, vert2, vert3]:
-			c.tris.append(self)
+			place_triangle_in_list(c.tris, self)
 	
 	static func sort(a, b):
 		# Sort by first edge first - edges will already be in order
@@ -146,6 +169,14 @@ class Triangle:
 
 	func equals(b):
 		return e1.equals(b.e1) and e2.equals(b.e2) and e3.equals(b.e3)
+	
+	static func place_triangle_in_list(list, t):
+		var t_ind = list.bsearch_custom(t, t, "sort")
+		if t_ind >= 0 and t_ind < len(list) and t.equals(list[t_ind]):
+			t = list[t_ind]
+		else:
+			list.insert(t_ind, t)
+		return t
 
 func _init():
 	vertices  = []
@@ -158,34 +189,23 @@ func clear():
 	triangles.clear()
 
 func add_triangle(vec1, vec2, vec3):
+	# Skip any non-triangles:
+	if vec1 == vec2 or vec1 == vec3 or vec2 == vec3:
+		return
 	# Add vertices, or use existing ones
 	var vl = []
-	for vector in [Vertex.new(vec1), Vertex.new(vec2), Vertex.new(vec3)]:
-		var v = vector
-		var v_ind = vertices.bsearch_custom(v, Vertex, "sort")
-		if vertices and v_ind >= 0 and v_ind < len(vertices) and v.equals(vertices[v_ind]):
-			v = vertices[v_ind]
-		else:
-			vertices.insert(v_ind, v)
-		vl.append(v)
+	for v in [Vertex.new(vec1), Vertex.new(vec2), Vertex.new(vec3)]:
+		vl.append(Vertex.place_vertex_in_list(vertices, v))
 	Vertex.make_clockwise(vl)
 
 	# Add edges, or use existing ones
 	var el = []
-	for edge in [Edge.new(vl[0], vl[1]), Edge.new(vl[1], vl[2]), Edge.new(vl[2], vl[0])]:
-		var e = edge
-		var e_ind = edges.bsearch_custom(e, Edge, "sort")
-		if edges and e_ind >= 0 and e_ind < len(edges) and e.equals(edges[e_ind]):
-			e = edges[e_ind]
-		else:
-			edges.insert(e_ind, e)
-		el.append(e)
+	for e in [Edge.new(vl[0], vl[1]), Edge.new(vl[1], vl[2]), Edge.new(vl[0], vl[2])]:
+		el.append(Edge.place_edge_in_list(edges, e))
 	
 	# Add triangle
 	var tri = Triangle.new(el[0], el[1], el[2], vl[0], vl[1], vl[2])
-	var t_ind = triangles.bsearch_custom(tri, Triangle, "sort")
-	# Not super worried about duplicates here
-	triangles.insert(t_ind, tri)
+	Triangle.place_triangle_in_list(triangles, tri)
 
 func create_height_features(hashes, base_height, start_amp, amp_multiplier, x_offset = 0.0, z_offset = 0.0):
 	# This takes an array of hash functions to be accumulated for each vertex
@@ -203,7 +223,7 @@ func create_height_features(hashes, base_height, start_amp, amp_multiplier, x_of
 		for p in hashes:
 			new_height += p.getHash(v.pos.x, v.pos.z) * amp
 			amp *= amp_multiplier
-		v.pos.y = new_height
+		v.set_height(new_height)
 		min_height = min(min_height, new_height)
 		max_height = max(max_height, new_height)
 
