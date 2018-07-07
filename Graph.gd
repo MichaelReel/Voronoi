@@ -187,7 +187,7 @@ func add_triangle(vec1, vec2, vec3):
 	# Not super worried about duplicates here
 	triangles.insert(t_ind, tri)
 
-func create_height_features(hashes, base_height, start_amp, amp_multiplier):
+func create_height_features(hashes, base_height, start_amp, amp_multiplier, x_offset = 0.0, z_offset = 0.0):
 	# This takes an array of hash functions to be accumulated for each vertex
 	# The hash instances in hashes need to implement a getHash(x, y) function
 	# Each getHash will be call for each vertex and the height added by amplitude

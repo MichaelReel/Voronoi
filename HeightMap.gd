@@ -39,13 +39,14 @@ func do_heightmap():
 	self.set_mesh(create_mesh())
 
 func add_base_height_features():
+	var zoom = 0.5
 	var procs = [
-		Perlin.new(0.125, 0.125, 1.0, 0.1),
-		Perlin.new(0.03125, 0.03125, 1.0, 0.1),
-		Perlin.new(0.0078125, 0.0078125, 1.0, 0.1),
+		Perlin.new(0.125, 0.125, 1.0, zoom),
+		Perlin.new(0.03125, 0.03125, 1.0, zoom),
+		Perlin.new(0.0078125, 0.0078125, 1.0, zoom),
 	]
 
-	input.create_height_features(procs, 0.125, 0.5, 0.25)
+	input.create_height_features(procs, 0.125, 0.25, 0.125)
 
 func create_mesh():
 	if not input:
