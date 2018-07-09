@@ -31,6 +31,7 @@ subdivide_depth = 0
 
 [node name="Generator" type="Spatial" parent="." index="0"]
 
+transform = Transform( 10, 0, 0, 0, 10, 0, 0, 0, 10, -5, -5, -5 )
 script = ExtResource( 1 )
 _sections_unfolded = [ "Transform" ]
 vertex_count = 1024
@@ -89,7 +90,6 @@ _sections_unfolded = [ "Transform" ]
 [node name="BaseOutline" type="MeshInstance" parent="Generator" index="3"]
 
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -0.01, 0.5 )
-visible = false
 layers = 1
 material_override = null
 cast_shadow = 1
@@ -106,7 +106,6 @@ _sections_unfolded = [ "Geometry", "Transform", "material" ]
 
 [node name="CameraMount" type="Spatial" parent="." index="1"]
 
-editor/display_folded = true
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.5, 1.2 )
 script = ExtResource( 5 )
 _sections_unfolded = [ "Transform" ]
