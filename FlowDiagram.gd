@@ -37,10 +37,12 @@ static func place_vertex_in_list(list, v):
 func priority_flood():
 	# Add all edge vertices to a queue
 	var queue = []
+	var spread = []
 	for edge in input.edges:
 		if len(edge.tris) == 1:
 			for v in [edge.v1, edge.v2]:
 				if not v.closed:
+					v.on_edge = true
 					place_vertex_in_list(queue, v)
 
 	print(str(len(queue)), " edge vertices added to queue")
@@ -53,6 +55,21 @@ func priority_flood():
 			if n.closed: continue
 			n.water_height = max(v.water_height, n.water_height)
 			place_vertex_in_list(queue, n)
+
+		# If the queued point has modded height
+		if v.water_height != v.pos.y:	
+			# add to a spreader queue
+			place_vertex_in_list(spread, v)
+	
+	# Take each spread point and level out the 
+	# water table around it
+	while not spread.empty():
+		var v = spread.pop_back()
+		# Get the neighbours of v
+		for n in v.connectors:
+			if n.water_height == n.pos.y or n.on_edge:
+				if n.water_height > v.water_height:
+					n.water_height = v.water_height
 
 
 func create_mesh():
@@ -84,6 +101,7 @@ func create_mesh():
 	# # 		surfTool.add_index(vert.index)
 	# # 		surfTool.add_index(vert.dependancy.index)
 	
+	# Draw only the flat areas of water
 	surfTool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for tri in input.triangles:
 		if tri.v1.water_height == tri.v2.water_height and \

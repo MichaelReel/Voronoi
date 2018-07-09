@@ -27,6 +27,7 @@ class Vertex:
 	var dependancy      # Downhill
 	var closed
 	var water_height
+	var on_edge
 
 	func _init(vertex):
 		pos        = vertex
@@ -35,6 +36,7 @@ class Vertex:
 		connectors = []
 		dependants = []
 		closed     = false
+		on_edge    = false
 
 	static func sort(a, b):
 		# Sort by z then x then y
